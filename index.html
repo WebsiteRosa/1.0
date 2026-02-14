@@ -283,12 +283,53 @@
         Copyright © 2026 ROSA 1.0 - Refinery Organization System Assistant
     </footer>
 
-    <script>
-        let db = JSON.parse(localStorage.getItem('ROSA_FINAL_STORAGE')) || [];
-        let trash = JSON.parse(localStorage.getItem('ROSA_TRASH_STORAGE')) || [];
-        let pendingDeleteId = null;
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-        function showToast(message, type = 'success') {
+        // FIREBASE CONFIGURATION
+        const firebaseConfig = {
+            apiKey: "AIzaSyAAEPfCxGqB8nmQrpku-0DkY30-FVCCZg4",
+            authDomain: "rosa-db.firebaseapp.com",
+            databaseURL: "https://rosa-db-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "rosa-db",
+            storageBucket: "rosa-db.firebasestorage.app",
+            messagingSenderId: "564956423327",
+            appId: "1:564956423327:web:5e619b93cd363816a52eaa"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const rtdb = getDatabase(app);
+
+        // GLOBAL VARIABLES
+        window.db = [];
+        window.trash = [];
+        window.pendingDeleteId = null;
+
+        // LOAD DATA FROM CLOUD
+        onValue(ref(rtdb, 'ROSA_STORAGE'), (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                window.db = data.db || [];
+                window.trash = data.trash || [];
+            } else {
+                window.db = [];
+                window.trash = [];
+            }
+            window.render();
+            document.getElementById('trashCount').innerText = window.trash.length;
+        });
+
+        // UPDATE CLOUD STORAGE
+        window.updateStorage = function() {
+            set(ref(rtdb, 'ROSA_STORAGE'), {
+                db: window.db,
+                trash: window.trash
+            }).catch(() => window.showToast("Sync Error!", "danger"));
+        };
+
+        // UI FUNCTIONS
+        window.showToast = function(message, type = 'success') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             toast.className = 'toast';
@@ -301,163 +342,109 @@
                 toast.style.animation = 'fadeOut 0.5s ease-in forwards';
                 setTimeout(() => toast.remove(), 500);
             }, 3000);
-        }
+        };
 
-        function confirmPermanentDelete(id) {
-            pendingDeleteId = id;
-            document.getElementById('confirmTitle').innerText = "Permanent Delete?";
-            document.getElementById('confirmDesc').innerText = "This action cannot be undone.";
-            document.getElementById('confirmModal').classList.remove('hidden');
-            document.getElementById('finalDeleteBtn').onclick = executePermanentDelete;
-        }
+        window.handleLogin = function() {
+            const u = document.getElementById('username').value;
+            const p = document.getElementById('password').value;
+            if(u.toLowerCase() === 'rosa' && p === '12345') window.switchWindow('authSection', 'welcomeSection');
+            else window.showToast("Invalid Credentials", "danger");
+        };
 
-        function confirmEmptyTrash() {
-            if(trash.length === 0) return;
-            document.getElementById('confirmTitle').innerText = "Empty Recycle Bin?";
-            document.getElementById('confirmDesc').innerText = "All documents in the bin will be deleted permanently.";
-            document.getElementById('confirmModal').classList.remove('hidden');
-            document.getElementById('finalDeleteBtn').onclick = executeEmptyTrash;
-        }
-
-        function closeConfirm() {
-            document.getElementById('confirmModal').classList.add('hidden');
-            pendingDeleteId = null;
-        }
-
-        function executePermanentDelete() {
-            if(pendingDeleteId) {
-                trash = trash.filter(x => x.id !== pendingDeleteId);
-                updateStorage();
-                renderTrash();
-                showToast("Deleted permanently", "danger");
-                closeConfirm();
-            }
-        }
-
-        function executeEmptyTrash() {
-            trash = [];
-            updateStorage();
-            renderTrash();
-            showToast("Recycle bin emptied", "danger");
-            closeConfirm();
-        }
-
-        function viewPDF(base64Data) {
-            try {
-                const base64String = base64Data.split(',')[1];
-                const byteCharacters = atob(base64String);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) { byteNumbers[i] = byteCharacters.charCodeAt(i); }
-                const byteArray = new Uint8Array(byteNumbers);
-                const file = new Blob([byteArray], { type: 'application/pdf' });
-                const fileURL = URL.createObjectURL(file);
-                window.open(fileURL, '_blank');
-            } catch (e) { showToast("Failed to open PDF", "danger"); }
-        }
-
-        function switchWindow(hideId, showId) {
+        window.switchWindow = function(hideId, showId) {
             document.getElementById(hideId).classList.add('hidden');
             const showEl = document.getElementById(showId);
             showEl.classList.remove('hidden');
             showEl.classList.add('window-fade');
-        }
+        };
 
-        function handleLogin() {
-            const u = document.getElementById('username').value;
-            const p = document.getElementById('password').value;
-            if(u.toLowerCase() === 'rosa' && p === '12345') switchWindow('authSection', 'welcomeSection');
-            else showToast("Invalid Credentials", "danger");
-        }
+        window.goToDashboard = function() { window.switchWindow('welcomeSection', 'mainSection'); window.render(); };
 
-        function goToDashboard() { switchWindow('welcomeSection', 'mainSection'); render(); }
-
-        function addEntry() {
+        window.addEntry = function() {
             const name = document.getElementById('docName').value;
             const start = document.getElementById('startDate').value;
             const end = document.getElementById('endDate').value;
             const fileInput = document.getElementById('docFile');
             const editId = document.getElementById('editId').value;
-            if(!name || !start || !end) return showToast("Please fill all fields", "info");
+            if(!name || !start || !end) return window.showToast("Please fill all fields", "info");
             
             if (fileInput.files[0]) {
                 const reader = new FileReader();
                 reader.onload = (e) => save(name, start, end, e.target.result, editId);
                 reader.readAsDataURL(fileInput.files[0]);
             } else { 
-                const existingPdf = editId ? db.find(x => x.id == editId).pdf : null;
+                const existingPdf = editId ? window.db.find(x => x.id == editId).pdf : null;
                 save(name, start, end, existingPdf, editId); 
             }
-        }
+        };
 
         function save(name, start, end, pdf, editId) {
             if (editId) {
-                const index = db.findIndex(x => x.id == editId);
-                db[index] = { id: parseInt(editId), name, start, end, pdf };
-                showToast("Record updated!");
+                const index = window.db.findIndex(x => x.id == editId);
+                window.db[index] = { id: parseInt(editId), name, start, end, pdf };
+                window.showToast("Record updated!");
             } else {
-                db.push({ id: Date.now(), name, start, end, pdf });
-                showToast("Record saved!");
+                window.db.push({ id: Date.now(), name, start, end, pdf });
+                window.showToast("Record saved!");
             }
-            updateStorage(); resetForm(); render();
+            window.updateStorage(); window.resetForm(); window.render();
         }
 
-        function deleteItem(id) {
-            const item = db.find(x => x.id === id);
-            trash.push(item);
-            db = db.filter(x => x.id !== id);
-            updateStorage(); render();
-            showToast("Moved to Recycle Bin", "danger");
-        }
+        window.deleteItem = function(id) {
+            const item = window.db.find(x => x.id === id);
+            window.trash.push(item);
+            window.db = window.db.filter(x => x.id !== id);
+            window.updateStorage(); window.render();
+            window.showToast("Moved to Recycle Bin", "danger");
+        };
 
-        function restoreItem(id) {
-            const item = trash.find(x => x.id === id);
-            db.push(item);
-            trash = trash.filter(x => x.id !== id);
-            updateStorage(); renderTrash(); render();
-            showToast("Record restored", "info");
-        }
+        window.restoreItem = function(id) {
+            const item = window.trash.find(x => x.id === id);
+            window.db.push(item);
+            window.trash = window.trash.filter(x => x.id !== id);
+            window.updateStorage(); window.renderTrash(); window.render();
+            window.showToast("Record restored", "info");
+        };
 
-        function updateStorage() {
-            localStorage.setItem('ROSA_FINAL_STORAGE', JSON.stringify(db));
-            localStorage.setItem('ROSA_TRASH_STORAGE', JSON.stringify(trash));
-            document.getElementById('trashCount').innerText = trash.length;
-        }
+        window.confirmPermanentDelete = function(id) {
+            window.pendingDeleteId = id;
+            document.getElementById('confirmTitle').innerText = "Permanent Delete?";
+            document.getElementById('confirmDesc').innerText = "This action cannot be undone.";
+            document.getElementById('confirmModal').classList.remove('hidden');
+            document.getElementById('finalDeleteBtn').onclick = window.executePermanentDelete;
+        };
 
-        function toggleTrash() {
-            const modal = document.getElementById('trashModal');
-            modal.classList.toggle('hidden');
-            if(!modal.classList.contains('hidden')) renderTrash();
-        }
+        window.executePermanentDelete = function() {
+            window.trash = window.trash.filter(x => x.id !== window.pendingDeleteId);
+            window.updateStorage(); window.renderTrash();
+            window.showToast("Deleted permanently", "danger");
+            window.closeConfirm();
+        };
 
-        function renderTrash() {
-            const body = document.getElementById('trashBody');
-            const emptyBtn = document.getElementById('emptyTrashBtn');
-            
-            if(trash.length === 0) {
-                body.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; opacity:0.5;">Trash is empty</td></tr>';
-                emptyBtn.classList.add('hidden');
-            } else {
-                body.innerHTML = '';
-                emptyBtn.classList.remove('hidden');
-                trash.forEach((item, index) => {
-                    body.innerHTML += `<tr>
-                        <td>${index + 1}</td>
-                        <td><div class="scroll-container">${item.name}</div></td>
-                        <td class="action-icons">
-                            <span onclick="restoreItem(${item.id})" style="cursor:pointer;" title="Restore">🔄</span>
-                            <span onclick="confirmPermanentDelete(${item.id})" style="cursor:pointer;" title="Delete Permanently">❌</span>
-                        </td>
-                    </tr>`;
-                });
-            }
-        }
+        window.confirmEmptyTrash = function() {
+            if(window.trash.length === 0) return;
+            document.getElementById('confirmTitle').innerText = "Empty Recycle Bin?";
+            document.getElementById('confirmDesc').innerText = "All documents will be deleted permanently.";
+            document.getElementById('confirmModal').classList.remove('hidden');
+            document.getElementById('finalDeleteBtn').onclick = window.executeEmptyTrash;
+        };
 
-        function render() {
+        window.executeEmptyTrash = function() {
+            window.trash = [];
+            window.updateStorage(); window.renderTrash();
+            window.showToast("Recycle bin emptied", "danger");
+            window.closeConfirm();
+        };
+
+        window.closeConfirm = function() { document.getElementById('confirmModal').classList.add('hidden'); window.pendingDeleteId = null; };
+
+        window.render = function() {
             const list = document.getElementById('listBody');
+            if(!list) return;
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             const sortBy = document.getElementById('sortMenu').value;
             const today = new Date();
-            let filteredData = db.filter(item => item.name.toLowerCase().includes(searchTerm));
+            let filteredData = window.db.filter(item => item.name.toLowerCase().includes(searchTerm));
 
             filteredData.sort((a, b) => {
                 if (sortBy === 'status') {
@@ -491,9 +478,32 @@
                     </td>
                 </tr>`;
             });
-        }
+        };
 
-        function resetForm() {
+        window.renderTrash = function() {
+            const body = document.getElementById('trashBody');
+            const emptyBtn = document.getElementById('emptyTrashBtn');
+            if(!body) return;
+            if(window.trash.length === 0) {
+                body.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; opacity:0.5;">Trash is empty</td></tr>';
+                emptyBtn.classList.add('hidden');
+            } else {
+                body.innerHTML = '';
+                emptyBtn.classList.remove('hidden');
+                window.trash.forEach((item, index) => {
+                    body.innerHTML += `<tr>
+                        <td>${index + 1}</td>
+                        <td><div class="scroll-container">${item.name}</div></td>
+                        <td class="action-icons">
+                            <span onclick="restoreItem(${item.id})" style="cursor:pointer;" title="Restore">🔄</span>
+                            <span onclick="confirmPermanentDelete(${item.id})" style="cursor:pointer;" title="Delete Permanently">❌</span>
+                        </td>
+                    </tr>`;
+                });
+            }
+        };
+
+        window.resetForm = function() {
             document.getElementById('docName').value = '';
             document.getElementById('startDate').value = '';
             document.getElementById('endDate').value = '';
@@ -502,10 +512,10 @@
             document.getElementById('formTitle').innerText = 'Register Document';
             document.getElementById('saveBtn').innerText = 'SAVE RECORD';
             document.getElementById('cancelBtn').classList.add('hidden');
-        }
+        };
 
-        function editItem(id) {
-            const item = db.find(x => x.id == id);
+        window.editItem = function(id) {
+            const item = window.db.find(x => x.id == id);
             document.getElementById('docName').value = item.name;
             document.getElementById('startDate').value = item.start;
             document.getElementById('endDate').value = item.end;
@@ -514,7 +524,25 @@
             document.getElementById('saveBtn').innerText = 'UPDATE RECORD';
             document.getElementById('cancelBtn').classList.remove('hidden');
             window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+        };
+
+        window.viewPDF = function(base64Data) {
+            try {
+                const base64String = base64Data.split(',')[1];
+                const byteCharacters = atob(base64String);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) { byteNumbers[i] = byteCharacters.charCodeAt(i); }
+                const byteArray = new Uint8Array(byteNumbers);
+                const file = new Blob([byteArray], { type: 'application/pdf' });
+                window.open(URL.createObjectURL(file), '_blank');
+            } catch (e) { window.showToast("Failed to open PDF", "danger"); }
+        };
+
+        window.toggleTrash = function() {
+            const modal = document.getElementById('trashModal');
+            modal.classList.toggle('hidden');
+            if(!modal.classList.contains('hidden')) window.renderTrash();
+        };
     </script>
 </body>
 </html>
