@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ROSA 1.0 | Statutory Management</title>
+    <style>
+        :root {
+            --rosa-primary: #6366f1;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --rosa-dark: #4338ca;
+        }
+
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: scale(0.98) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* --- INTERNAL TOAST --- */
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; }
+        .toast {
+            background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px);
+            color: white; padding: 12px 25px; border-radius: 10px;
+            border-left: 4px solid var(--rosa-primary); box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            margin-top: 10px; font-size: 14px; animation: slideIn 0.3s ease-out forwards;
+            display: flex; align-items: center; gap: 10px;
+        }
+
+        /* --- INTERNAL CONFIRMATION MODAL --- */
+        .confirm-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 10000;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .confirm-box {
+            padding: 30px; text-align: center; max-width: 350px; width: 90%;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* --- FITUR SLIDE KIRI KANAN --- */
+        .scroll-container {
+            max-width: 250px;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding-bottom: 8px;
+            display: block;
+        }
+
+        .scroll-container::-webkit-scrollbar {
+            height: 6px;
+            display: block;
+        }
+        .scroll-container::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        .scroll-container::-webkit-scrollbar-thumb {
+            background: var(--rosa-primary);
+            border-radius: 10px;
+        }
+
+        /* --- FOOTER STYLE --- */
+        footer {
+            text-align: center;
+            padding: 20px 0;
+            margin-top: 50px;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(5px);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 1px;
+        }
+
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeOut { to { opacity: 0; transform: translateY(20px); } }
+
+        .window-fade { animation: fadeInScale 0.5s ease-out forwards; }
+
+        body, html { 
+            margin: 0; padding: 0; width: 100%; min-height: 100vh;
+            font-family: 'Segoe UI', sans-serif;
+            background-image: linear-gradient(rgba(34, 46, 74, 0.85), rgba(33, 48, 82, 0.85)), 
+                              url('https://images.unsplash.com/photo-1516937941344-00b4e0337589?q=80&w=2070&auto=format&fit=crop');
+            background-size: cover; background-position: center; background-attachment: fixed;
+            color: white; overflow-x: hidden;
+            display: flex; flex-direction: column;
+        }
+
+        .page-content { flex: 1; }
+
+        .top-left-logo { position: absolute; top: 15px; left: 15px; width: 100px; z-index: 100; filter: drop-shadow(0 2px 4px rgba(21,13,13,0.5)); }
+        .top-right-logo { position: absolute; top: 15px; right: 15px; width: 100px; z-index: 100; filter: drop-shadow(0 2px 4px rgba(95,50,50,0.5)); }
+        .brand-logo { width: 110px; margin-bottom: 15px; filter: drop-shadow(0 0 15px rgba(99,102,241,0.6)); }
+        .nav-logo { width: 55px; margin-right: 12px; }
+        .hidden { display: none !important; }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 15px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+        }
+
+        #authSection, #welcomeSection { height: 100vh; display: flex; justify-content: center; align-items: center; position: relative; }
+        .card-inner { padding: 2.5rem; width: 90%; max-width: 400px; text-align: center; z-index: 10; }
+        #mainSection { width: 95%; max-width: 1100px; margin: 20px auto; padding-bottom: 50px; position: relative; }
+
+        .nav-bar { 
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 1rem 0; border-bottom: 1px solid rgba(255,255,255,0.1); 
+            margin-bottom: 30px; margin-top: 100px; margin-left: 20px; margin-right: 20px; 
+        }
+
+        input, select { 
+            width: 100%; padding: 12px; margin: 8px 0; border: none; border-radius: 10px; 
+            box-sizing: border-box; font-size: 15px; background: rgba(255,255,255,0.95); color: #0f172a;
+        }
+        .file-label { display: block; text-align: left; font-size: 11px; color: #94a3b8; margin-bottom: 10px; }
+
+        .controls-grid { display: grid; grid-template-columns: 1fr 200px; gap: 15px; margin-bottom: 15px; align-items: center; }
+        .search-input { background: rgba(255,255,255,0.1) !important; color: white !important; border: 1px solid rgba(255,255,255,0.2) !important; padding-left: 15px !important; margin: 0 !important; }
+        
+        .sort-select { 
+            background-color: var(--rosa-primary) !important; color: white !important; 
+            border: 2px solid var(--rosa-dark) !important; margin: 0 !important; cursor: pointer; 
+            font-weight: bold; font-size: 11px; padding: 10px 35px 10px 15px; height: 42px; border-radius: 10px;
+        }
+
+        .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; width: 100%; margin-top: 5px; }
+        .btn-primary { background: var(--rosa-primary); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-logout { background: rgba(239, 68, 68, 0.2); color: #fca5a5; width: auto; font-size: 0.8rem; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .btn-trash { background: rgba(255, 255, 255, 0.1); color: white; width: auto; font-size: 0.8rem; border: 1px solid rgba(255,255,255,0.2); }
+
+        .table-wrapper { overflow-x: auto; margin-top: 10px; }
+        table { width: 100%; border-collapse: collapse; min-width: 800px; background: rgba(0, 0, 0, 0.2); border-radius: 12px; overflow: hidden; }
+        th { text-align: left; padding: 15px; background: rgba(255,255,255,0.05); font-size: 12px; text-transform: uppercase; color: #94a3b8; }
+        td { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 14px; }
+
+        .badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; min-width: 100px; display: inline-block; text-align: center; }
+        .expired { background: var(--danger); }
+        .warning { background: var(--warning); color: black; }
+        .secure { background: var(--success); }
+        .action-icons { display: flex; gap: 15px; font-size: 1.1rem; }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 1000; display: flex; justify-content: center; align-items: center;
+        }
+        .trash-content { width: 90%; max-width: 700px; max-height: 80vh; overflow-y: auto; padding: 25px; }
+    </style>
+</head>
+<body>
+
+    <div id="toast-container"></div>
+    
+    <div id="confirmModal" class="confirm-overlay hidden">
+        <div class="confirm-box glass-panel window-fade">
+            <h3 style="margin-top:0;" id="confirmTitle">Permanent Delete?</h3>
+            <p style="font-size: 14px; opacity: 0.8;" id="confirmDesc">This action cannot be undone.</p>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn" style="background: rgba(255,255,255,0.1); color: white;" onclick="closeConfirm()">CANCEL</button>
+                <button class="btn btn-danger" id="finalDeleteBtn">DELETE NOW</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-content">
+        <img src="https://drive.google.com/thumbnail?id=1hwj29w9qzb1NPmwLlnwtwfHrF5DaGq4v&sz=w1000" class="top-left-logo" alt="Danantara">
+        <img src="https://drive.google.com/thumbnail?id=1RKW9wGjOiUU33xfnHVafFyLZ0I2ic4gU&sz=w1000" class="top-right-logo" alt="Patra Niaga">
+
+        <div id="authSection" class="window-fade">
+            <div class="card-inner glass-panel">
+                <img src="https://drive.google.com/thumbnail?id=1cE2310pRHuIoh9yZ8A17rJdTkLnS-Puh&sz=w1000" class="brand-logo" alt="Logo">
+                <h1 style="margin:0;">ROSA 1.0</h1>
+                <p style="font-size: 10px; opacity: 0.7; letter-spacing: 1px; margin-bottom: 2rem;">REFINERY ORGANIZATION SYSTEM ASSISTANT</p>
+                <input type="text" id="username" placeholder="Username">
+                <input type="password" id="password" placeholder="Password">
+                <button class="btn btn-primary" onclick="handleLogin()">AUTHORIZE ACCESS</button>
+            </div>
+        </div>
+
+        <div id="welcomeSection" class="hidden">
+            <div class="glass-panel card-inner">
+                <img src="https://drive.google.com/thumbnail?id=1cE2310pRHuIoh9yZ8A17rJdTkLnS-Puh&sz=w1000" class="brand-logo" alt="Logo">
+                <h1>WELCOME</h1>
+                <p style="letter-spacing: 2px; color: var(--rosa-primary);">SYSTEM INITIALIZED</p>
+                <button class="btn btn-primary" onclick="goToDashboard()">OPEN DASHBOARD</button>
+            </div>
+        </div>
+
+        <div id="mainSection" class="hidden">
+            <div class="nav-bar">
+                <div style="display: flex; align-items: center;">
+                    <img src="https://drive.google.com/thumbnail?id=1cE2310pRHuIoh9yZ8A17rJdTkLnS-Puh&sz=w1000" class="nav-logo" alt="Logo">
+                    <div>
+                        <strong>ROSA 1.0</strong>
+                        <div style="font-size: 10px; opacity: 0.5;">Statutory Management</div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="btn btn-trash" onclick="toggleTrash()">🗑️ Recycle Bin (<span id="trashCount">0</span>)</button>
+                    <button class="btn btn-logout" onclick="location.reload()">Logout</button>
+                </div>
+            </div>
+
+            <div class="content">
+                <div class="glass-panel" style="padding: 20px; margin-bottom: 20px;">
+                    <h3 id="formTitle" style="margin-top:0;">Register Document</h3>
+                    <input type="hidden" id="editId">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div><input type="text" id="docName" placeholder="Name of Document"></div>
+                        <div><input type="date" id="startDate"><label class="file-label">Start Date</label></div>
+                        <div><input type="date" id="endDate"><label class="file-label">End Date</label></div>
+                        <div><input type="file" id="docFile" accept="application/pdf"><label class="file-label">Upload PDF (optional)</label></div>
+                    </div>
+                    <button class="btn btn-primary" id="saveBtn" onclick="addEntry()">SAVE RECORD</button>
+                    <button class="btn hidden" id="cancelBtn" onclick="resetForm()" style="background: rgba(255, 255, 255, 0.1); margin-top:5px;">CANCEL EDIT</button>
+                </div>
+
+                <div class="controls-grid">
+                    <div class="search-container">
+                        <input type="text" id="searchInput" class="search-input" placeholder="Search Document..." onkeyup="render()">
+                    </div>
+                    <div>
+                        <select id="sortMenu" class="sort-select" onchange="render()">
+                            <option value="status">SORT: STATUS</option>
+                            <option value="name">SORT: A-Z NAME</option>
+                            <option value="date-asc">SORT: EXPIRY (SOONEST)</option>
+                            <option value="date-desc">SORT: EXPIRY (FURTHEST)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">No.</th>
+                                <th>Name of Document</th>
+                                <th>Start Date</th>
+                                <th>End Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="trashModal" class="modal-overlay hidden">
+        <div class="trash-content glass-panel window-fade">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin:0;">🗑️ Recycle Bin</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button id="emptyTrashBtn" class="btn btn-danger" style="width: auto; font-size: 12px;" onclick="confirmEmptyTrash()">EMPTY BIN</button>
+                    <button class="btn btn-logout" onclick="toggleTrash()">Close</button>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                <table style="min-width: 100%;">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">No.</th>
+                            <th>Document Name</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trashBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        Copyright © 2026 ROSA 1.0 - Refinery Organization System Assistant
+    </footer>
+
+    <script>
+        let db = JSON.parse(localStorage.getItem('ROSA_FINAL_STORAGE')) || [];
+        let trash = JSON.parse(localStorage.getItem('ROSA_TRASH_STORAGE')) || [];
+        let pendingDeleteId = null;
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            let icon = '✅';
+            if(type === 'danger') { icon = '😞'; toast.style.borderLeftColor = 'var(--danger)'; }
+            else if(type === 'info') { icon = '🔄'; toast.style.borderLeftColor = 'var(--warning)'; }
+            toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'fadeOut 0.5s ease-in forwards';
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        }
+
+        function confirmPermanentDelete(id) {
+            pendingDeleteId = id;
+            document.getElementById('confirmTitle').innerText = "Permanent Delete?";
+            document.getElementById('confirmDesc').innerText = "This action cannot be undone.";
+            document.getElementById('confirmModal').classList.remove('hidden');
+            document.getElementById('finalDeleteBtn').onclick = executePermanentDelete;
+        }
+
+        function confirmEmptyTrash() {
+            if(trash.length === 0) return;
+            document.getElementById('confirmTitle').innerText = "Empty Recycle Bin?";
+            document.getElementById('confirmDesc').innerText = "All documents in the bin will be deleted permanently.";
+            document.getElementById('confirmModal').classList.remove('hidden');
+            document.getElementById('finalDeleteBtn').onclick = executeEmptyTrash;
+        }
+
+        function closeConfirm() {
+            document.getElementById('confirmModal').classList.add('hidden');
+            pendingDeleteId = null;
+        }
+
+        function executePermanentDelete() {
+            if(pendingDeleteId) {
+                trash = trash.filter(x => x.id !== pendingDeleteId);
+                updateStorage();
+                renderTrash();
+                showToast("Deleted permanently", "danger");
+                closeConfirm();
+            }
+        }
+
+        function executeEmptyTrash() {
+            trash = [];
+            updateStorage();
+            renderTrash();
+            showToast("Recycle bin emptied", "danger");
+            closeConfirm();
+        }
+
+        function viewPDF(base64Data) {
+            try {
+                const base64String = base64Data.split(',')[1];
+                const byteCharacters = atob(base64String);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) { byteNumbers[i] = byteCharacters.charCodeAt(i); }
+                const byteArray = new Uint8Array(byteNumbers);
+                const file = new Blob([byteArray], { type: 'application/pdf' });
+                const fileURL = URL.createObjectURL(file);
+                window.open(fileURL, '_blank');
+            } catch (e) { showToast("Failed to open PDF", "danger"); }
+        }
+
+        function switchWindow(hideId, showId) {
+            document.getElementById(hideId).classList.add('hidden');
+            const showEl = document.getElementById(showId);
+            showEl.classList.remove('hidden');
+            showEl.classList.add('window-fade');
+        }
+
+        function handleLogin() {
+            const u = document.getElementById('username').value;
+            const p = document.getElementById('password').value;
+            if(u.toLowerCase() === 'rosa' && p === '12345') switchWindow('authSection', 'welcomeSection');
+            else showToast("Invalid Credentials", "danger");
+        }
+
+        function goToDashboard() { switchWindow('welcomeSection', 'mainSection'); render(); }
+
+        function addEntry() {
+            const name = document.getElementById('docName').value;
+            const start = document.getElementById('startDate').value;
+            const end = document.getElementById('endDate').value;
+            const fileInput = document.getElementById('docFile');
+            const editId = document.getElementById('editId').value;
+            if(!name || !start || !end) return showToast("Please fill all fields", "info");
+            
+            if (fileInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => save(name, start, end, e.target.result, editId);
+                reader.readAsDataURL(fileInput.files[0]);
+            } else { 
+                const existingPdf = editId ? db.find(x => x.id == editId).pdf : null;
+                save(name, start, end, existingPdf, editId); 
+            }
+        }
+
+        function save(name, start, end, pdf, editId) {
+            if (editId) {
+                const index = db.findIndex(x => x.id == editId);
+                db[index] = { id: parseInt(editId), name, start, end, pdf };
+                showToast("Record updated!");
+            } else {
+                db.push({ id: Date.now(), name, start, end, pdf });
+                showToast("Record saved!");
+            }
+            updateStorage(); resetForm(); render();
+        }
+
+        function deleteItem(id) {
+            const item = db.find(x => x.id === id);
+            trash.push(item);
+            db = db.filter(x => x.id !== id);
+            updateStorage(); render();
+            showToast("Moved to Recycle Bin", "danger");
+        }
+
+        function restoreItem(id) {
+            const item = trash.find(x => x.id === id);
+            db.push(item);
+            trash = trash.filter(x => x.id !== id);
+            updateStorage(); renderTrash(); render();
+            showToast("Record restored", "info");
+        }
+
+        function updateStorage() {
+            localStorage.setItem('ROSA_FINAL_STORAGE', JSON.stringify(db));
+            localStorage.setItem('ROSA_TRASH_STORAGE', JSON.stringify(trash));
+            document.getElementById('trashCount').innerText = trash.length;
+        }
+
+        function toggleTrash() {
+            const modal = document.getElementById('trashModal');
+            modal.classList.toggle('hidden');
+            if(!modal.classList.contains('hidden')) renderTrash();
+        }
+
+        function renderTrash() {
+            const body = document.getElementById('trashBody');
+            const emptyBtn = document.getElementById('emptyTrashBtn');
+            
+            if(trash.length === 0) {
+                body.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; opacity:0.5;">Trash is empty</td></tr>';
+                emptyBtn.classList.add('hidden');
+            } else {
+                body.innerHTML = '';
+                emptyBtn.classList.remove('hidden');
+                trash.forEach((item, index) => {
+                    body.innerHTML += `<tr>
+                        <td>${index + 1}</td>
+                        <td><div class="scroll-container">${item.name}</div></td>
+                        <td class="action-icons">
+                            <span onclick="restoreItem(${item.id})" style="cursor:pointer;" title="Restore">🔄</span>
+                            <span onclick="confirmPermanentDelete(${item.id})" style="cursor:pointer;" title="Delete Permanently">❌</span>
+                        </td>
+                    </tr>`;
+                });
+            }
+        }
+
+        function render() {
+            const list = document.getElementById('listBody');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const sortBy = document.getElementById('sortMenu').value;
+            const today = new Date();
+            let filteredData = db.filter(item => item.name.toLowerCase().includes(searchTerm));
+
+            filteredData.sort((a, b) => {
+                if (sortBy === 'status') {
+                    const getPrio = (d) => {
+                        const diff = Math.ceil((new Date(d) - today) / 86400000);
+                        return diff < 0 ? 1 : (diff <= 14 ? 2 : 3);
+                    };
+                    return getPrio(a.end) - getPrio(b.end);
+                } else if (sortBy === 'name') return a.name.localeCompare(b.name);
+                else if (sortBy === 'date-asc') return new Date(a.end) - new Date(b.end);
+                else if (sortBy === 'date-desc') return new Date(b.end) - new Date(a.end);
+                return 0;
+            });
+
+            list.innerHTML = filteredData.length === 0 ? '<tr><td colspan="6" style="text-align:center; padding:40px; opacity:0.5;">No records found.</td></tr>' : '';
+            filteredData.forEach((item, index) => {
+                const diff = Math.ceil((new Date(item.end) - today) / 86400000);
+                let stat = "SECURE", cls = "secure";
+                if(diff < 0) { stat = "EXPIRED"; cls = "expired"; }
+                else if(diff <= 14) { stat = "NEARING EXPIRY"; cls = "warning"; }
+                
+                list.innerHTML += `<tr>
+                    <td>${index + 1}</td>
+                    <td><div class="scroll-container"><b>${item.name}</b></div></td>
+                    <td>${item.start}</td><td>${item.end}</td>
+                    <td><span class="badge ${cls}">${stat}</span></td>
+                    <td class="action-icons">
+                        ${item.pdf ? `<span onclick="viewPDF('${item.pdf}')" style="cursor:pointer;">📄</span>` : ''}
+                        <span onclick="editItem(${item.id})" style="cursor:pointer;">✏️</span>
+                        <span onclick="deleteItem(${item.id})" style="cursor:pointer;">🗑️</span>
+                    </td>
+                </tr>`;
+            });
+        }
+
+        function resetForm() {
+            document.getElementById('docName').value = '';
+            document.getElementById('startDate').value = '';
+            document.getElementById('endDate').value = '';
+            document.getElementById('docFile').value = '';
+            document.getElementById('editId').value = '';
+            document.getElementById('formTitle').innerText = 'Register Document';
+            document.getElementById('saveBtn').innerText = 'SAVE RECORD';
+            document.getElementById('cancelBtn').classList.add('hidden');
+        }
+
+        function editItem(id) {
+            const item = db.find(x => x.id == id);
+            document.getElementById('docName').value = item.name;
+            document.getElementById('startDate').value = item.start;
+            document.getElementById('endDate').value = item.end;
+            document.getElementById('editId').value = item.id;
+            document.getElementById('formTitle').innerText = 'Edit Document Record';
+            document.getElementById('saveBtn').innerText = 'UPDATE RECORD';
+            document.getElementById('cancelBtn').classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
